@@ -1,0 +1,54 @@
+import math
+import unittest
+
+def transform_time_to_cyclic(hour):
+   
+    radians = (hour / 24) * 2 * math.pi
+    return math.sin(radians), math.cos(radians)
+
+def calculate_time_difference(hour1, hour2):
+   
+    diff = (hour2 - hour1) % 24
+    return min(diff, 24 - diff)
+
+# Testing using unittest
+class TestTimeTransformation(unittest.TestCase):
+
+    def test_cyclic_representation(self):
+      
+        sin, cos = transform_time_to_cyclic(0)
+        self.assertAlmostEqual(sin, 0)
+        self.assertAlmostEqual(cos, 1)
+        
+        sin, cos = transform_time_to_cyclic(12)
+        self.assertAlmostEqual(sin, 0)
+        self.assertAlmostEqual(cos, -1)
+        
+        sin, cos = transform_time_to_cyclic(6)
+        self.assertAlmostEqual(sin, 1)
+        self.assertAlmostEqual(cos, 0)
+        
+        sin, cos = transform_time_to_cyclic(18)
+        self.assertAlmostEqual(sin, -1)
+        self.assertAlmostEqual(cos, 0)
+
+    def test_time_difference_simple_case(self):
+       
+        self.assertEqual(calculate_time_difference(10, 12), 2)
+        
+    def test_time_difference_midnight_wraparound(self):
+       
+        self.assertEqual(calculate_time_difference(23, 1), 2)
+        self.assertEqual(calculate_time_difference(1, 23), 2)
+
+    def test_time_difference_zero_case(self):
+      
+        self.assertEqual(calculate_time_difference(5, 5), 0)
+
+    def test_time_difference_half_day_case(self):
+      
+        self.assertEqual(calculate_time_difference(6, 18), 12)
+        self.assertEqual(calculate_time_difference(18, 6), 12)
+
+if __name__ == "__main__":
+    unittest.main()
