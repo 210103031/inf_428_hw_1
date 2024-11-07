@@ -1,0 +1,75 @@
+import numpy as np
+import unittest
+
+def generate_random_data(mean, variance, size):
+    return np.clip(np.random.normal(mean, variance, size), 0, 90).tolist()
+
+def calculate_department_threat_score(threat_scores):
+    return np.mean(threat_scores)
+
+def aggregate_company_threat_score(department_scores, department_importances, user_counts):
+    weighted_scores = [
+        score * importance * user_count 
+        for score, importance, user_count in zip(department_scores, department_importances, user_counts)
+    ]
+    total_weight = sum([importance * user_count for importance, user_count in zip(department_importances, user_counts)])
+    return np.clip(sum(weighted_scores) / total_weight, 0, 90)
+
+
+class TestCompanyThreatScore(unittest.TestCase):
+
+    def test_calculate_department_threat_score(self):
+      
+        threat_scores = [10, 20, 30, 40, 50]
+        expected_average = np.mean(threat_scores)
+        self.assertAlmostEqual(calculate_department_threat_score(threat_scores), expected_average, places=2)
+
+    def test_aggregate_company_threat_score_equal_importance(self):
+        # Case 1: Departments with equal importance, no outliers, similar user count
+        department_scores = [30, 32, 35, 33, 31]
+        department_importances = [1, 1, 1, 1, 1]
+        user_counts = [50, 50, 50, 50, 50]
+        expected_score = np.mean(department_scores)
+        self.assertAlmostEqual(aggregate_company_threat_score(department_scores, department_importances, user_counts), expected_score, places=2)
+
+    def test_aggregate_company_threat_score_high_importance_variation(self):
+        # Case 2: Varying importance levels
+        department_scores = [10, 20, 30, 40, 50]
+        department_importances = [1, 2, 3, 4, 5]
+        user_counts = [50, 50, 50, 50, 50]
+        # Expected weighted calculation based on importance
+        weighted_scores = [s * i for s, i in zip(department_scores, department_importances)]
+        expected_score = sum(weighted_scores) / sum(department_importances)
+        self.assertAlmostEqual(aggregate_company_threat_score(department_scores, department_importances, user_counts), expected_score, places=2)
+
+    def test_aggregate_company_threat_score_high_user_count_variation(self):
+        # Case 3: Departments with different user counts
+        department_scores = [20, 30, 40, 50, 60]
+        department_importances = [2, 2, 2, 2, 2]
+        user_counts = [10, 100, 50, 20, 5]
+        weighted_scores = [s * u for s, u in zip(department_scores, user_counts)]
+        total_weight = sum(user_counts)
+        expected_score = sum(weighted_scores) / total_weight
+        self.assertAlmostEqual(aggregate_company_threat_score(department_scores, department_importances, user_counts), expected_score, places=2)
+
+    def test_aggregate_company_threat_score_extreme_values(self):
+        # Case 4: One department with extreme high threat, others low
+        department_scores = [90, 5, 5, 5, 5]
+        department_importances = [1, 1, 1, 1, 1]
+        user_counts = [50, 50, 50, 50, 50]
+        # High weight on the extreme department score
+        weighted_scores = [s * u for s, u in zip(department_scores, user_counts)]
+        total_weight = sum(user_counts)
+        expected_score = sum(weighted_scores) / total_weight
+        self.assertAlmostEqual(aggregate_company_threat_score(department_scores, department_importances, user_counts), expected_score, places=2)
+
+    def test_aggregate_company_threat_score_clipping(self):
+        # Case 5: Check clipping for scores beyond 90
+        department_scores = [100, 200, 300]
+        department_importances = [1, 1, 1]
+        user_counts = [10, 10, 10]
+        result = aggregate_company_threat_score(department_scores, department_importances, user_counts)
+        self.assertTrue(0 <= result <= 90)  # Ensures the score is clipped within [0, 90]
+
+if __name__ == "__main__":
+    unittest.main()
