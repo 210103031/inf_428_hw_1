@@ -1,0 +1,107 @@
+import numpy as np
+import pandas as pd
+import glob
+import os
+import unittest
+
+# Functions for data generation
+def generate_and_save_random_data(file_name, means, variances, user_counts):
+    data = []
+    max_users = max(user_counts)  # Find the maximum number of users in any department
+    
+    for mean, variance, count in zip(means, variances, user_counts):
+        lower_bound = max(mean - variance, 0)
+        upper_bound = min(mean + variance + 1, 90)
+
+        # Ensure lower_bound is always less than upper_bound
+        if lower_bound >= upper_bound:
+            upper_bound = lower_bound + 1
+            print(f"Adjusted upper_bound for mean={mean} and variance={variance} to avoid low >= high error.")
+
+        # Generate threat scores
+        scores = np.random.randint(lower_bound, upper_bound, count)
+        
+        # Pad the scores with -1 (placeholder) to match the maximum user count across departments
+        if len(scores) < max_users:
+            scores = np.pad(scores, (0, max_users - len(scores)), constant_values=-1)
+        
+        data.append(scores)
+    
+    # Create the DataFrame
+    df = pd.DataFrame({f'Department_{i+1}': scores for i, scores in enumerate(data)})
+    
+    # Save the DataFrame to a CSV file
+    df.to_csv(file_name, index=False)
+    print(f"Generated and saved data to {file_name}")
+
+def load_random_data(file_name):
+    if os.path.exists(file_name):
+        df = pd.read_csv(file_name)
+        
+        # Replace -1 values with NaN for proper handling (if necessary)
+        df.replace(-1, np.nan, inplace=True)
+        
+        return [df[col].dropna().astype(float).tolist() for col in df.columns]  # Keep NaN as float
+    else:
+        raise FileNotFoundError(f"Data file '{file_name}' not found.")
+
+def calculate_department_score(threat_scores):
+    return np.mean(threat_scores)
+
+def calculate_aggregated_score(department_scores):
+    return np.mean(department_scores)
+
+class TestThreatScore(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Delete all CSV files for a fresh start
+        for file in glob.glob("*.csv"):
+            os.remove(file)
+            print(f"Deleted existing file: {file}")
+
+        # Generate data for all test cases
+        cls.test_cases = [
+            {"file_name": "test_uniform.csv", "means": [40]*5, "variances": [10]*5, "user_counts": [50]*5},
+            {"file_name": "test_high_threat.csv", "means": [20, 30, 40, 90, 20], "variances": [5, 10, 15, 0, 5], "user_counts": [50]*5},
+            {"file_name": "test_outliers.csv", "means": [30]*5, "variances": [10]*5, "user_counts": [50]*5},
+            {"file_name": "test_diff_users.csv", "means": [20, 40, 60, 80, 50], "variances": [10, 15, 5, 20, 10], "user_counts": [10, 100, 200, 50, 150]},
+        ]
+
+        for case in cls.test_cases:
+            generate_and_save_random_data(case["file_name"], case["means"], case["variances"], case["user_counts"])
+
+    def test_uniform_threat_scores(self):
+        file_name = "test_uniform.csv"
+        threat_scores = load_random_data(file_name)
+        department_scores = [calculate_department_score(scores) for scores in threat_scores]
+        aggregated_score = calculate_aggregated_score(department_scores)
+        self.assertGreaterEqual(aggregated_score, 0)
+        self.assertLessEqual(aggregated_score, 90)
+
+    def test_one_department_high_threat(self):
+        file_name = "test_high_threat.csv"
+        threat_scores = load_random_data(file_name)
+        department_scores = [calculate_department_score(scores) for scores in threat_scores]
+        aggregated_score = calculate_aggregated_score(department_scores)
+        self.assertGreaterEqual(aggregated_score, 0)
+        self.assertLessEqual(aggregated_score, 90)
+
+    def test_outlier_in_one_department(self):
+        file_name = "test_outliers.csv"
+        threat_scores = load_random_data(file_name)
+        threat_scores[2] = [90] * 10 + threat_scores[2][10:]  # Inject outlier into one department
+        department_scores = [calculate_department_score(scores) for scores in threat_scores]
+        aggregated_score = calculate_aggregated_score(department_scores)
+        self.assertGreaterEqual(aggregated_score, 0)
+        self.assertLessEqual(aggregated_score, 90)
+
+    def test_different_user_counts(self):
+        file_name = "test_diff_users.csv"
+        threat_scores = load_random_data(file_name)
+        department_scores = [calculate_department_score(scores) for scores in threat_scores]
+        aggregated_score = calculate_aggregated_score(department_scores)
+        self.assertGreaterEqual(aggregated_score, 0)
+        self.assertLessEqual(aggregated_score, 90)
+
+if __name__ == "__main__":
+    unittest.main()
